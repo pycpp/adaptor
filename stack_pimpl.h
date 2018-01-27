@@ -299,7 +299,7 @@ public:
         stack_pimpl& x
     )
     {
-        fast_swap(get(), rhs.get());
+        fast_swap(get(), x.get());
     }
 
 private:
