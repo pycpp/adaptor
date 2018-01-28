@@ -119,10 +119,12 @@ protected:
 
     ~heap_singleton()
     {
-        delete data_;
-#ifndef NDEBUG
-        assert(data_ != nullptr && "Singleton used outside of pattern.");
+        // use temporary to avoid recursion
+        value_type* tmp = data_;
         data_ = nullptr;
+        delete tmp;
+#ifndef NDEBUG
+        assert(tmp != nullptr && "Singleton used outside of pattern.");
 #endif
     }
 
@@ -169,10 +171,12 @@ protected:
 
     ~heap_singleton()
     {
-        delete data_.load(memory_order_acquire);
+        // use temporary to avoid recursion
+        value_type* tmp = data_.load(memory_order_acquire);
+        data_.store(nullptr, memory_order_release);
+        delete tmp;
 #ifndef NDEBUG
-        assert(data_.load() != nullptr && "Singleton used outside of pattern.");
-        data_.store(nullptr);
+        assert(tmp != nullptr && "Singleton used outside of pattern.");
 #endif
     }
 
@@ -243,12 +247,16 @@ protected:
 
     ~stack_singleton()
     {
+        // use a temporary to avoid recursion
         pimp_detail::storage_asserter<T, Size, Alignment> {};
         value_type& r = reinterpret_cast<value_type&>(data_);
-        r.~T();
-#ifndef NDEBUG
-        assert(initialized_ && "Singleton used outside of pattern.");
+        bool tmp = initialized_;
         initialized_ = false;
+        if (tmp) {
+            r.~T();
+        }
+#ifndef NDEBUG
+        assert(tmp && "Singleton used outside of pattern.");
 #endif
     }
 
@@ -305,10 +313,13 @@ protected:
     {
         pimp_detail::storage_asserter<T, Size, Alignment> {};
         value_type& r = reinterpret_cast<value_type&>(data_);
-        r.~T();
+        bool tmp = initialized_.load(memory_order_acquire);
+        initialized_.store(false, memory_order_release);
+        if (tmp) {
+            r.~T();
+        }
 #ifndef NDEBUG
-        assert(initialized_.load() && "Singleton used outside of pattern.");
-        initialized_.store(false);
+        assert(tmp && "Singleton used outside of pattern.");
 #endif
     }
 
